@@ -30,6 +30,9 @@ func main() {
 	mockName := ast.NewIdent(*interfaceName + "Mock")
 	st := &ast.StructType{Fields: &ast.FieldList{}}
 	methods := pkgast.GetRequires(it)
+	for i := range methods {
+		methods[i].Type = pkgast.ExportType(pkg, methods[i].Type)
+	}
 	for _, method := range methods {
 		st.Fields.List = append(st.Fields.List, &ast.Field{
 			Names: []*ast.Ident{ast.NewIdent(method.Names[0].Name + "Mock")},

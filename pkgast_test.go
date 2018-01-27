@@ -638,6 +638,16 @@ func TestExportType(t *testing.T) {
 	FooBar(foo.Foo, int) *foo.Bar
 }`,
 		},
+		{
+			pkg: &ast.Package{Name: "foo"},
+			expr: &ast.FuncType{
+				Params: &ast.FieldList{List: []*ast.Field{
+					{Type: &ast.Ellipsis{Elt: ast.NewIdent("BarOption")}, Names: []*ast.Ident{ast.NewIdent("opts")}},
+				}},
+				Results: &ast.FieldList{},
+			},
+			expected: "func(opts ...foo.BarOption)",
+		},
 	}
 
 	for _, test := range tests {

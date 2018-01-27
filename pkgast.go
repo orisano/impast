@@ -28,6 +28,9 @@ func ImportPackage(importPath string) (*ast.Package, error) {
 		if err != nil {
 			return nil, errors.Wrapf(err, "pkgast: broken package %q", pkgPath)
 		}
+		if len(pkgs) > 1 {
+			delete(pkgs, "main")
+		}
 		if len(pkgs) != 1 {
 			return nil, errors.Errorf("pkgast: ambiguous packages, found %d packages", len(pkgs))
 		}

@@ -116,3 +116,66 @@ type BarFoo int
 		}
 	}
 }
+
+func TestTypeName(t *testing.T) {
+	tests := []struct {
+		expr     ast.Expr
+		expected string
+	}{
+		{
+			expr:     nil,
+			expected: "",
+		},
+		{
+			expr:     ast.NewIdent("int"),
+			expected: "int",
+		},
+		{
+			expr:     &ast.StarExpr{X: ast.NewIdent("Foo")},
+			expected: "*Foo",
+		},
+		{
+			expr:     &ast.SelectorExpr{X: ast.NewIdent("test_pkg"), Sel: ast.NewIdent("Bar")},
+			expected: "test_pkg.Bar",
+		},
+		{
+			expr:     &ast.ArrayType{Elt: ast.NewIdent("float64")},
+			expected: "[]float64",
+		},
+		{
+			expr:     &ast.MapType{Key: ast.NewIdent("string"), Value: ast.NewIdent("int")},
+			expected: "map[string]int",
+		},
+		{
+			expr: &ast.ChanType{
+				Value: &ast.StructType{Fields: &ast.FieldList{}},
+				Dir:   ast.SEND | ast.RECV,
+			},
+			expected: "chan struct {\n}",
+		},
+		{
+			expr:     &ast.InterfaceType{Methods: &ast.FieldList{}},
+			expected: "interface {\n}",
+		},
+		{
+			expr: &ast.FuncType{
+				Params: &ast.FieldList{
+					List: []*ast.Field{{Type: &ast.ArrayType{Elt: ast.NewIdent("byte")}}},
+				},
+				Results: &ast.FieldList{
+					List: []*ast.Field{
+						{Type: ast.NewIdent("int64"), Names: []*ast.Ident{ast.NewIdent("n")}},
+						{Type: ast.NewIdent("error"), Names: []*ast.Ident{ast.NewIdent("err")}},
+					},
+				},
+			},
+			expected: "func([]byte) (n int64, err error)",
+		},
+	}
+
+	for _, test := range tests {
+		if got := pkgast.TypeName(test.expr); got != test.expected {
+			t.Errorf("unexpected type name. expected: %q, but got: %q", test.expected, got)
+		}
+	}
+}

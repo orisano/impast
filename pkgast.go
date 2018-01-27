@@ -68,6 +68,10 @@ func ExportType(pkg *ast.Package, expr ast.Expr) ast.Expr {
 		fn.Params = ExportFields(pkg, fn.Params)
 		fn.Results = ExportFields(pkg, fn.Results)
 		return &fn
+	case *ast.InterfaceType:
+		it := *expr
+		it.Methods = ExportFields(pkg, it.Methods)
+		return &it
 	case *ast.Ellipsis:
 		return &ast.Ellipsis{Ellipsis: expr.Ellipsis, Elt: ExportType(pkg, expr.Elt)}
 	default:

@@ -256,3 +256,94 @@ func TestTypeName(t *testing.T) {
 		}
 	}
 }
+
+func TestFindStruct(t *testing.T) {
+	tests := []struct {
+		pkg      *ast.Package
+		name     string
+		expected bool
+	}{
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type Foo struct {
+	bar int
+}
+`),
+				},
+			},
+			name:     "Foo",
+			expected: true,
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type Bar struct {
+	bar int
+}
+`),
+				},
+			},
+			name:     "Foo",
+			expected: false,
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type Foo interface {
+	Bar()
+}
+`),
+				},
+			},
+			name:     "Foo",
+			expected: false,
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type Foo struct{}
+type Bar struct{}
+`),
+				},
+			},
+			name:     "Bar",
+			expected: true,
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type (
+	Foo struct{}
+	Bar struct{}
+)
+`),
+				},
+			},
+			name:     "Bar",
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		s := pkgast.FindStruct(test.pkg, test.name)
+		if got := s != nil; got != test.expected {
+			t.Errorf("expected result. expected: %v, but got: %v", test.expected, got)
+		}
+	}
+}

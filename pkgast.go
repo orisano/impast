@@ -154,6 +154,17 @@ func FindStruct(pkg *ast.Package, name string) *ast.StructType {
 	return st
 }
 
+func TypeName(expr ast.Expr) string {
+	if expr == nil {
+		return ""
+	}
+	var b bytes.Buffer
+	if err := printer.Fprint(&b, token.NewFileSet(), expr); err != nil {
+		panic(err)
+	}
+	return b.String()
+}
+
 func getSearchPath() []string {
 	var searchPath []string
 	if wd, err := os.Getwd(); err == nil {
@@ -164,15 +175,4 @@ func getSearchPath() []string {
 	}
 	searchPath = append(searchPath, filepath.Join(build.Default.GOROOT, "src"))
 	return searchPath
-}
-
-func TypeName(expr ast.Expr) string {
-	if expr == nil {
-		return ""
-	}
-	var b bytes.Buffer
-	if err := printer.Fprint(&b, token.NewFileSet(), expr); err != nil {
-		panic(err)
-	}
-	return b.String()
 }

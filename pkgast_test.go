@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"sort"
 	"testing"
 
 	"github.com/orisano/pkgast"
@@ -435,6 +436,119 @@ type (
 		s := pkgast.FindInterface(test.pkg, test.name)
 		if got := s != nil; got != test.expected {
 			t.Errorf("expected result. expected: %v, but got: %v", test.expected, got)
+		}
+	}
+}
+
+func TestGetMethods(t *testing.T) {
+	tests := []struct {
+		pkg      *ast.Package
+		name     string
+		expected []string
+	}{
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type Foo struct {}
+
+func (f Foo) Bar() {}
+`),
+				},
+			},
+			name:     "Foo",
+			expected: []string{"Bar"},
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type Foo struct {}
+
+func (f *Foo) Bar() {}
+`),
+				},
+			},
+			name:     "Foo",
+			expected: nil,
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type Foo struct {}
+
+func (f Foo) bar() {}
+`),
+				},
+			},
+			name:     "Foo",
+			expected: nil,
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type S struct {}
+
+func (s *S) Foo() {}
+`),
+				},
+			},
+			name:     "*S",
+			expected: []string{"Foo"},
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type S struct {}
+
+func (s *S) Foo() {}
+`),
+					"foo.go": mustParseFile(`
+package main
+
+func (s *S) Bar() {}
+`),
+				},
+			},
+			name:     "*S",
+			expected: []string{"Bar", "Foo"},
+		},
+	}
+
+	equals := func(a, b []string) bool {
+		if len(a) != len(b) {
+			return false
+		}
+		for i := range a {
+			if a[i] != b[i] {
+				return false
+			}
+		}
+		return true
+	}
+
+	for _, test := range tests {
+		methods := pkgast.GetMethods(test.pkg, test.name)
+		var got []string
+		for _, method := range methods {
+			got = append(got, method.Name.Name)
+		}
+		sort.Strings(got)
+		if !equals(got, test.expected) {
+			t.Errorf("unexpected methods. expected: %v, but got: %v", test.expected, got)
 		}
 	}
 }

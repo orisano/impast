@@ -552,3 +552,97 @@ func (s *S) Bar() {}
 		}
 	}
 }
+
+func TestExportType(t *testing.T) {
+	tests := []struct {
+		pkg      *ast.Package
+		expr     ast.Expr
+		expected string
+	}{
+		{
+			pkg:      &ast.Package{Name: "foo"},
+			expr:     ast.NewIdent("Foo"),
+			expected: "foo.Foo",
+		},
+		{
+			pkg:      &ast.Package{Name: "foo"},
+			expr:     ast.NewIdent("bar"),
+			expected: "bar",
+		},
+		{
+			pkg:      &ast.Package{Name: "foo"},
+			expr:     &ast.StarExpr{X: ast.NewIdent("Foo")},
+			expected: "*foo.Foo",
+		},
+		{
+			pkg:      &ast.Package{Name: "foo"},
+			expr:     &ast.MapType{Key: ast.NewIdent("Foo"), Value: ast.NewIdent("Bar")},
+			expected: "map[foo.Foo]foo.Bar",
+		},
+		{
+			pkg:      &ast.Package{Name: "foo"},
+			expr:     &ast.ArrayType{Elt: ast.NewIdent("Bar")},
+			expected: "[]foo.Bar",
+		},
+		{
+			pkg:      &ast.Package{Name: "bar"},
+			expr:     &ast.ChanType{Value: ast.NewIdent("FooBar"), Dir: ast.RECV | ast.SEND},
+			expected: "chan bar.FooBar",
+		},
+		{
+			pkg: &ast.Package{Name: "bar"},
+			expr: &ast.FuncType{
+				Params: &ast.FieldList{List: []*ast.Field{
+					{Type: ast.NewIdent("int")},
+					{Type: ast.NewIdent("Foo")},
+				}},
+				Results: &ast.FieldList{List: []*ast.Field{
+					{Type: &ast.StarExpr{X: ast.NewIdent("Bar")}},
+					{Type: ast.NewIdent("error")},
+				}},
+			},
+			expected: "func(int, bar.Foo) (*bar.Bar, error)",
+		},
+		{
+			pkg: &ast.Package{Name: "foo"},
+			expr: &ast.InterfaceType{
+				Methods: &ast.FieldList{List: []*ast.Field{
+					{
+						Names: []*ast.Ident{ast.NewIdent("Write")},
+						Type: &ast.FuncType{
+							Params: &ast.FieldList{List: []*ast.Field{
+								{Type: &ast.ArrayType{Elt: ast.NewIdent("byte")}},
+							}},
+							Results: &ast.FieldList{List: []*ast.Field{
+								{Type: ast.NewIdent("int64")},
+								{Type: ast.NewIdent("error")},
+							}},
+						},
+					},
+					{
+						Names: []*ast.Ident{ast.NewIdent("FooBar")},
+						Type: &ast.FuncType{
+							Params: &ast.FieldList{List: []*ast.Field{
+								{Type: ast.NewIdent("Foo")},
+								{Type: ast.NewIdent("int")},
+							}},
+							Results: &ast.FieldList{List: []*ast.Field{
+								{Type: &ast.StarExpr{X: ast.NewIdent("Bar")}},
+							}},
+						},
+					},
+				}},
+			},
+			expected: `interface {
+	Write([]byte) (int64, error)
+	FooBar(foo.Foo, int) *foo.Bar
+}`,
+		},
+	}
+
+	for _, test := range tests {
+		if got := pkgast.TypeName(pkgast.ExportType(test.pkg, test.expr)); got != test.expected {
+			t.Errorf("unexpected type. expected: %q, but got: %q", test.expected, got)
+		}
+	}
+}

@@ -105,7 +105,7 @@ func GetMethods(pkg *ast.Package, name string) []*ast.FuncDecl {
 			return true
 		}
 		rt := funcDecl.Recv.List[0]
-		if typeName(rt.Type) == name && funcDecl.Name.IsExported() {
+		if TypeName(rt.Type) == name && funcDecl.Name.IsExported() {
 			methods = append(methods, funcDecl)
 		}
 		return true
@@ -163,7 +163,7 @@ func getSearchPath() []string {
 	return searchPath
 }
 
-func typeName(expr ast.Expr) string {
+func TypeName(expr ast.Expr) string {
 	var b bytes.Buffer
 	if err := printer.Fprint(&b, token.NewFileSet(), expr); err != nil {
 		panic(err)

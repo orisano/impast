@@ -34,7 +34,7 @@ func main() {
 		panic(err)
 	}
 
-	for _, method := range it.Methods.List {
+	for _, method := range pkgast.GetRequires(it) {
 		decl := &ast.FuncDecl{
 			Name: method.Names[0],
 			Recv: &ast.FieldList{List: []*ast.Field{

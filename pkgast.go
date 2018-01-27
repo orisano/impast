@@ -164,6 +164,9 @@ func getSearchPath() []string {
 }
 
 func TypeName(expr ast.Expr) string {
+	if expr == nil {
+		return ""
+	}
 	var b bytes.Buffer
 	if err := printer.Fprint(&b, token.NewFileSet(), expr); err != nil {
 		panic(err)

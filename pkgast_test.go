@@ -656,3 +656,148 @@ func TestExportType(t *testing.T) {
 		}
 	}
 }
+
+func TestGetRequires(t *testing.T) {
+	tests := []struct {
+		pkg      *ast.Package
+		name     string
+		expected []string
+	}{
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type (
+	Reader interface {
+		Read(p []byte) (n int64, err error)
+	}
+	Writer interface {
+		Write(p []byte) (n int64, err error)
+	}
+	ReadWriter interface {
+		Reader
+		Writer
+	}
+)
+`),
+				},
+			},
+			name:     "ReadWriter",
+			expected: []string{"Read", "Write"},
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type (
+	Reader interface {
+		Read(p []byte) (n int64, err error)
+	}
+	Writer interface {
+		Write(p []byte) (n int64, err error)
+	}
+	ReadWriter interface {
+		Reader
+		Writer
+	}
+)
+`),
+				},
+			},
+			name:     "Writer",
+			expected: []string{"Write"},
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type (
+	Foo interface {
+		Bar()
+	}
+	Reader interface {
+		Foo
+		Read(p []byte) (n int64, err error)
+	}
+	Writer interface {
+		Write(p []byte) (n int64, err error)
+	}
+	ReadWriter interface {
+		Reader
+		Writer
+	}
+)
+`),
+				},
+			},
+			name:     "ReadWriter",
+			expected: []string{"Bar", "Read", "Write"},
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type (
+	Foo interface {
+		Bar()
+	}
+	FooBar interface {
+		Bar()
+	}
+	Reader interface {
+		Foo
+		Read(p []byte) (n int64, err error)
+	}
+	Writer interface {
+		Write(p []byte) (n int64, err error)
+	}
+	ReadWriter interface {
+		Reader
+		Writer
+	}
+)
+`),
+				},
+			},
+			name:     "ReadWriter",
+			expected: []string{"Bar", "Read", "Write"},
+		},
+	}
+
+	equals := func(a, b []string) bool {
+		if len(a) != len(b) {
+			return false
+		}
+		for i := range a {
+			if a[i] != b[i] {
+				return false
+			}
+		}
+		return true
+	}
+
+	for _, test := range tests {
+		it := pkgast.FindInterface(test.pkg, test.name)
+		if it == nil {
+			t.Errorf("interface not found: %q", test.name)
+			continue
+		}
+		fields := pkgast.GetRequires(it)
+		var got []string
+		for _, field := range fields {
+			got = append(got, field.Names[0].Name)
+		}
+		sort.Strings(got)
+		if !equals(got, test.expected) {
+			t.Errorf("unexpected functions. expected: %v, but got: %v", test.expected, got)
+		}
+	}
+}

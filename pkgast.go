@@ -168,6 +168,31 @@ func TypeName(expr ast.Expr) string {
 	return b.String()
 }
 
+func GetRequires(it *ast.InterfaceType) []*ast.Field {
+	var fields []*ast.Field
+	has := map[string]struct{}{}
+
+	add := func(f *ast.Field) {
+		name := f.Names[0].Name
+		if _, ok := has[name]; ok {
+			return
+		}
+		has[name] = struct{}{}
+		fields = append(fields, f)
+	}
+
+	for _, field := range it.Methods.List {
+		if len(field.Names) == 0 {
+			for _, f := range GetRequires(field.Type.(*ast.Ident).Obj.Decl.(*ast.TypeSpec).Type.(*ast.InterfaceType)) {
+				add(f)
+			}
+		} else {
+			add(field)
+		}
+	}
+	return fields
+}
+
 func getSearchPath() []string {
 	var searchPath []string
 	if wd, err := os.Getwd(); err == nil {

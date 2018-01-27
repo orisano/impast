@@ -117,6 +117,83 @@ type BarFoo int
 	}
 }
 
+func TestFindTypeByName(t *testing.T) {
+	tests := []struct {
+		pkg      *ast.Package
+		name     string
+		expected string
+	}{
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type Foo int
+`),
+				},
+			},
+			name:     "Foo",
+			expected: "int",
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type Foo int
+`),
+				},
+			},
+			name:     "Bar",
+			expected: "",
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type Foo int
+`),
+					"bar.go": mustParseFile(`
+package main
+
+type Bar float64
+`),
+				},
+			},
+			name:     "Bar",
+			expected: "float64",
+		},
+		{
+			pkg: &ast.Package{
+				Files: map[string]*ast.File{
+					"main.go": mustParseFile(`
+package main
+
+type (
+	Foo int
+	Bar float64
+	FooBar func(int, int) float64
+)
+`),
+				},
+			},
+			name:     "FooBar",
+			expected: "func(int, int) float64",
+		},
+	}
+
+	for _, test := range tests {
+		typ := pkgast.FindTypeByName(test.pkg, test.name)
+		if got := pkgast.TypeName(typ); got != test.expected {
+			t.Errorf("unexpected type. expected: %q, but got: %q", test.expected, got)
+		}
+	}
+}
+
 func TestTypeName(t *testing.T) {
 	tests := []struct {
 		expr     ast.Expr

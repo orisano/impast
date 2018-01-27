@@ -89,8 +89,7 @@ func ExportField(pkg *ast.Package, fields *ast.FieldList) *ast.FieldList {
 func ExportFunc(pkg *ast.Package, fn *ast.FuncDecl) *ast.FuncDecl {
 	efn := *fn
 	efn.Recv = nil
-	efn.Type.Params = ExportField(pkg, efn.Type.Params)
-	efn.Type.Results = ExportField(pkg, efn.Type.Results)
+	efn.Type = ExportType(pkg, efn.Type).(*ast.FuncType)
 	return &efn
 }
 

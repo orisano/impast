@@ -65,8 +65,8 @@ func ExportType(pkg *ast.Package, expr ast.Expr) ast.Expr {
 		return &ast.ChanType{Begin: expr.Begin, Arrow: expr.Arrow, Dir: expr.Dir, Value: ExportType(pkg, expr.Value)}
 	case *ast.FuncType:
 		fn := *expr
-		fn.Params = ExportField(pkg, fn.Params)
-		fn.Results = ExportField(pkg, fn.Results)
+		fn.Params = ExportFields(pkg, fn.Params)
+		fn.Results = ExportFields(pkg, fn.Results)
 		return &fn
 	case *ast.Ellipsis:
 		return &ast.Ellipsis{Ellipsis: expr.Ellipsis, Elt: ExportType(pkg, expr.Elt)}
@@ -75,7 +75,7 @@ func ExportType(pkg *ast.Package, expr ast.Expr) ast.Expr {
 	}
 }
 
-func ExportField(pkg *ast.Package, fields *ast.FieldList) *ast.FieldList {
+func ExportFields(pkg *ast.Package, fields *ast.FieldList) *ast.FieldList {
 	if fields == nil {
 		return nil
 	}

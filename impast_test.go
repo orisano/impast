@@ -1,4 +1,4 @@
-package pkgast_test
+package impast_test
 
 import (
 	"go/ast"
@@ -7,7 +7,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/orisano/pkgast"
+	"github.com/orisano/impast"
 )
 
 func mustParseFile(src string) *ast.File {
@@ -108,7 +108,7 @@ type BarFoo int
 
 	for _, test := range tests {
 		got := 0
-		pkgast.ScanDecl(test.pkg, func(decl ast.Decl) bool {
+		impast.ScanDecl(test.pkg, func(decl ast.Decl) bool {
 			got++
 			return !test.stop(decl)
 		})
@@ -188,8 +188,8 @@ type (
 	}
 
 	for _, test := range tests {
-		typ := pkgast.FindTypeByName(test.pkg, test.name)
-		if got := pkgast.TypeName(typ); got != test.expected {
+		typ := impast.FindTypeByName(test.pkg, test.name)
+		if got := impast.TypeName(typ); got != test.expected {
 			t.Errorf("unexpected type. expected: %q, but got: %q", test.expected, got)
 		}
 	}
@@ -252,7 +252,7 @@ func TestTypeName(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if got := pkgast.TypeName(test.expr); got != test.expected {
+		if got := impast.TypeName(test.expr); got != test.expected {
 			t.Errorf("unexpected type name. expected: %q, but got: %q", test.expected, got)
 		}
 	}
@@ -342,7 +342,7 @@ type (
 	}
 
 	for _, test := range tests {
-		s := pkgast.FindStruct(test.pkg, test.name)
+		s := impast.FindStruct(test.pkg, test.name)
 		if got := s != nil; got != test.expected {
 			t.Errorf("expected result. expected: %v, but got: %v", test.expected, got)
 		}
@@ -433,7 +433,7 @@ type (
 	}
 
 	for _, test := range tests {
-		s := pkgast.FindInterface(test.pkg, test.name)
+		s := impast.FindInterface(test.pkg, test.name)
 		if got := s != nil; got != test.expected {
 			t.Errorf("expected result. expected: %v, but got: %v", test.expected, got)
 		}
@@ -541,7 +541,7 @@ func (s *S) Bar() {}
 	}
 
 	for _, test := range tests {
-		methods := pkgast.GetMethods(test.pkg, test.name)
+		methods := impast.GetMethods(test.pkg, test.name)
 		var got []string
 		for _, method := range methods {
 			got = append(got, method.Name.Name)
@@ -651,7 +651,7 @@ func TestExportType(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if got := pkgast.TypeName(pkgast.ExportType(test.pkg, test.expr)); got != test.expected {
+		if got := impast.TypeName(impast.ExportType(test.pkg, test.expr)); got != test.expected {
 			t.Errorf("unexpected type. expected: %q, but got: %q", test.expected, got)
 		}
 	}
@@ -785,12 +785,12 @@ type (
 	}
 
 	for _, test := range tests {
-		it := pkgast.FindInterface(test.pkg, test.name)
+		it := impast.FindInterface(test.pkg, test.name)
 		if it == nil {
 			t.Errorf("interface not found: %q", test.name)
 			continue
 		}
-		fields := pkgast.GetRequires(it)
+		fields := impast.GetRequires(it)
 		var got []string
 		for _, field := range fields {
 			got = append(got, field.Names[0].Name)

@@ -1,4 +1,4 @@
-package pkgast
+package impast
 
 import (
 	"bytes"

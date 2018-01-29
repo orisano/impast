@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/orisano/pkgast"
+	"github.com/orisano/impast"
 )
 
 func main() {
@@ -17,7 +17,7 @@ func main() {
 	interfaceName := flag.String("out", "", "generate interface name")
 	flag.Parse()
 
-	pkg, err := pkgast.ImportPackage(*pkgPath)
+	pkg, err := impast.ImportPackage(*pkgPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func main() {
 	it := &ast.InterfaceType{
 		Methods: &ast.FieldList{},
 	}
-	methods := pkgast.GetMethods(pkg, *typeName)
+	methods := impast.GetMethods(pkg, *typeName)
 	for _, method := range methods {
 		it.Methods.List = append(it.Methods.List, &ast.Field{
 			Type:  method.Type,
@@ -37,7 +37,7 @@ func main() {
 		Specs: []ast.Spec{
 			&ast.TypeSpec{
 				Name: ast.NewIdent(*interfaceName),
-				Type: pkgast.ExportType(pkg, it),
+				Type: impast.ExportType(pkg, it),
 			},
 		},
 	}

@@ -10,7 +10,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/orisano/pkgast"
+	"github.com/orisano/impast"
 )
 
 func main() {
@@ -20,12 +20,12 @@ func main() {
 	receiverName := flag.String("name", "", "receiver name")
 	flag.Parse()
 
-	pkg, err := pkgast.ImportPackage(*pkgPath)
+	pkg, err := impast.ImportPackage(*pkgPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	it := pkgast.FindInterface(pkg, *interfaceName)
+	it := impast.FindInterface(pkg, *interfaceName)
 	if it == nil {
 		log.Fatalf("interface not found %q", *interfaceName)
 	}
@@ -35,7 +35,7 @@ func main() {
 		panic(err)
 	}
 
-	for _, method := range pkgast.GetRequires(it) {
+	for _, method := range impast.GetRequires(it) {
 		decl := &ast.FuncDecl{
 			Name: method.Names[0],
 			Recv: &ast.FieldList{List: []*ast.Field{
@@ -44,7 +44,7 @@ func main() {
 					Type:  ast.NewIdent(*typeName),
 				},
 			}},
-			Type: autoNaming(pkgast.ExportType(pkg, method.Type).(*ast.FuncType)),
+			Type: autoNaming(impast.ExportType(pkg, method.Type).(*ast.FuncType)),
 			Body: &ast.BlockStmt{List: []ast.Stmt{
 				&ast.ExprStmt{X: body},
 			}},

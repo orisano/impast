@@ -9,7 +9,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/orisano/pkgast"
+	"github.com/orisano/impast"
 )
 
 func main() {
@@ -17,21 +17,21 @@ func main() {
 	interfaceName := flag.String("type", "", "interface type")
 	flag.Parse()
 
-	pkg, err := pkgast.ImportPackage(*pkgPath)
+	pkg, err := impast.ImportPackage(*pkgPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	it := pkgast.FindInterface(pkg, *interfaceName)
+	it := impast.FindInterface(pkg, *interfaceName)
 	if it == nil {
 		log.Fatalf("interface not found %q", *interfaceName)
 	}
 
 	mockName := ast.NewIdent(*interfaceName + "Mock")
 	st := &ast.StructType{Fields: &ast.FieldList{}}
-	methods := pkgast.GetRequires(it)
+	methods := impast.GetRequires(it)
 	for i := range methods {
-		methods[i].Type = pkgast.ExportType(pkg, methods[i].Type)
+		methods[i].Type = impast.ExportType(pkg, methods[i].Type)
 	}
 	for _, method := range methods {
 		st.Fields.List = append(st.Fields.List, &ast.Field{

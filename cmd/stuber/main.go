@@ -18,6 +18,7 @@ func main() {
 	interfaceName := flag.String("implement", "", "implement interface name")
 	typeName := flag.String("type", "", "type name")
 	receiverName := flag.String("name", "", "receiver name")
+	export := flag.Bool("export", false, "export")
 	flag.Parse()
 
 	pkg, err := impast.ImportPackage(*pkgPath)
@@ -36,6 +37,10 @@ func main() {
 	}
 
 	for _, method := range impast.GetRequires(it) {
+		t := method.Type
+		if *export {
+			t = impast.ExportType(pkg, t)
+		}
 		decl := &ast.FuncDecl{
 			Name: method.Names[0],
 			Recv: &ast.FieldList{List: []*ast.Field{
@@ -44,7 +49,7 @@ func main() {
 					Type:  ast.NewIdent(*typeName),
 				},
 			}},
-			Type: autoNaming(impast.ExportType(pkg, method.Type).(*ast.FuncType)),
+			Type: autoNaming(t.(*ast.FuncType)),
 			Body: &ast.BlockStmt{List: []ast.Stmt{
 				&ast.ExprStmt{X: body},
 			}},

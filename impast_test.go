@@ -1,9 +1,11 @@
 package impast_test
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"log"
 	"sort"
 	"testing"
 
@@ -16,6 +18,24 @@ func mustParseFile(src string) *ast.File {
 		panic(err)
 	}
 	return f
+}
+
+func ExampleImportPackage() {
+	pkg, err := impast.ImportPackage("io")
+	if err != nil {
+		log.Fatal(err)
+	}
+	it := impast.FindInterface(pkg, "Writer")
+	if it == nil {
+		log.Fatalf("io.Writer not found")
+	}
+
+	methods := impast.GetRequires(it)
+	for _, method := range methods {
+		fmt.Println(method.Names[0].Name)
+	}
+	// Output:
+	// Write
 }
 
 func TestScanDecl(t *testing.T) {

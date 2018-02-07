@@ -1,4 +1,4 @@
-This library for package AST importing.
+library for package AST importing.
 
 ## Installation
 ```sh

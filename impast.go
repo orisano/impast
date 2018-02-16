@@ -26,19 +26,19 @@ func ImportPackage(importPath string) (*ast.Package, error) {
 			continue
 		}
 		if err != nil {
-			return nil, errors.Wrapf(err, "pkgast: broken package %q", pkgPath)
+			return nil, errors.Wrapf(err, "impast: broken package %q", pkgPath)
 		}
 		if len(pkgs) > 1 {
 			delete(pkgs, "main")
 		}
 		if len(pkgs) != 1 {
-			return nil, errors.Errorf("pkgast: ambiguous packages, found %d packages", len(pkgs))
+			return nil, errors.Errorf("impast: ambiguous packages, found %d packages", len(pkgs))
 		}
 		for _, pkg := range pkgs {
 			return pkg, nil
 		}
 	}
-	return nil, errors.Errorf("pkgast: package not found %q", importPath)
+	return nil, errors.Errorf("impast: package not found %q", importPath)
 }
 
 func ScanDecl(pkg *ast.Package, f func(ast.Decl) bool) {

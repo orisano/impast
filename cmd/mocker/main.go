@@ -49,10 +49,12 @@ func main() {
 	printer.Fprint(os.Stdout, token.NewFileSet(), genDecl)
 	os.Stdout.WriteString("\n\n")
 
+	recvName := ast.NewIdent("mo")
+
 	for _, method := range methods {
 		ft := autoNaming(method.Type.(*ast.FuncType))
 		expr := &ast.CallExpr{
-			Fun:  &ast.SelectorExpr{X: ast.NewIdent("m"), Sel: ast.NewIdent(method.Names[0].Name + "Mock")},
+			Fun:  &ast.SelectorExpr{X: recvName, Sel: ast.NewIdent(method.Names[0].Name + "Mock")},
 			Args: flattenName(ft.Params),
 		}
 		if len(ft.Params.List) >= 1 {
@@ -71,7 +73,7 @@ func main() {
 			Name: method.Names[0],
 			Recv: &ast.FieldList{List: []*ast.Field{
 				{
-					Names: []*ast.Ident{ast.NewIdent("m")},
+					Names: []*ast.Ident{recvName},
 					Type:  &ast.StarExpr{X: mockName},
 				},
 			}},

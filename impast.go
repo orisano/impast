@@ -15,7 +15,14 @@ import (
 )
 
 func ImportPackage(importPath string) (*ast.Package, error) {
-	for _, base := range getSearchPath() {
+	var paths []string
+	if strings.HasPrefix(importPath, ".") {
+		paths = []string{"."}
+	} else {
+		paths = getSearchPath()
+	}
+
+	for _, base := range paths {
 		pkgPath := filepath.Join(base, filepath.FromSlash(importPath))
 
 		fset := token.NewFileSet()

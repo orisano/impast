@@ -51,37 +51,42 @@ func main() {
 	recvName := ast.NewIdent("mo")
 
 	for _, method := range methods {
-		ft := impast.AutoNaming(method.Type.(*ast.FuncType))
-		expr := &ast.CallExpr{
-			Fun:  &ast.SelectorExpr{X: recvName, Sel: ast.NewIdent(method.Names[0].Name + "Mock")},
-			Args: flattenName(ft.Params),
-		}
-		if len(ft.Params.List) >= 1 {
-			if _, variadic := ft.Params.List[len(ft.Params.List)-1].Type.(*ast.Ellipsis); variadic {
-				expr.Ellipsis = token.Pos(1)
-			}
-		}
-		var stmt ast.Stmt
-		if ft.Results == nil {
-			stmt = &ast.ExprStmt{X: expr}
-		} else {
-			stmt = &ast.ReturnStmt{Results: []ast.Expr{expr}}
-		}
-
-		funcDecl := &ast.FuncDecl{
-			Name: method.Names[0],
-			Recv: &ast.FieldList{List: []*ast.Field{
-				{
-					Names: []*ast.Ident{recvName},
-					Type:  &ast.StarExpr{X: mockName},
-				},
-			}},
-			Type: ft,
-			Body: &ast.BlockStmt{List: []ast.Stmt{stmt}},
-		}
+		funcDecl := genMockFuncDecl(mockName, recvName, method)
 		printer.Fprint(os.Stdout, token.NewFileSet(), funcDecl)
 		os.Stdout.WriteString("\n\n")
 	}
+}
+
+func genMockFuncDecl(mock, recv *ast.Ident, method *ast.Field) *ast.FuncDecl {
+	ft := impast.AutoNaming(method.Type.(*ast.FuncType))
+	expr := &ast.CallExpr{
+		Fun:  &ast.SelectorExpr{X: recv, Sel: ast.NewIdent(method.Names[0].Name + "Mock")},
+		Args: flattenName(ft.Params),
+	}
+	if len(ft.Params.List) >= 1 {
+		if _, variadic := ft.Params.List[len(ft.Params.List)-1].Type.(*ast.Ellipsis); variadic {
+			expr.Ellipsis = token.Pos(1)
+		}
+	}
+	var stmt ast.Stmt
+	if ft.Results == nil {
+		stmt = &ast.ExprStmt{X: expr}
+	} else {
+		stmt = &ast.ReturnStmt{Results: []ast.Expr{expr}}
+	}
+
+	funcDecl := &ast.FuncDecl{
+		Name: method.Names[0],
+		Recv: &ast.FieldList{List: []*ast.Field{
+			{
+				Names: []*ast.Ident{recv},
+				Type:  &ast.StarExpr{X: mock},
+			},
+		}},
+		Type: ft,
+		Body: &ast.BlockStmt{List: []ast.Stmt{stmt}},
+	}
+	return funcDecl
 }
 
 func flattenName(fields *ast.FieldList) []ast.Expr {

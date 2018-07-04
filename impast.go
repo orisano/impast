@@ -30,7 +30,7 @@ func ImportPackage(importPath string) (*ast.Package, error) {
 		pkgs, err := parser.ParseDir(fset, pkgPath, func(info os.FileInfo) bool {
 			return !strings.HasSuffix(info.Name(), "_test.go")
 		}, 0)
-		if os.IsNotExist(err) {
+		if os.IsNotExist(err) { // package not found
 			continue
 		}
 		if err != nil {

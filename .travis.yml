@@ -1,3 +1,7 @@
+env:
+  global:
+    - CC_TEST_REPORTER_ID=bc834d61bd8c44b21973a273168c975b942871024d5a9a3490dfc05d7dfd9afd
+
 language: go
 go:
   - "1.8"
@@ -6,3 +10,13 @@ go:
 
 go_import_path: github.com/orisano/impast
 
+before_script:
+    - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+    - chmod +x ./cc-test-reporter
+    - ./cc-test-reporter before-build
+
+script:
+    - go test -coverprofile=c.out ./...
+
+after_script:
+    - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT

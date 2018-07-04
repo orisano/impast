@@ -2,6 +2,7 @@ package impast
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"go/build"
 	"go/parser"
@@ -198,6 +199,20 @@ func GetRequires(it *ast.InterfaceType) []*ast.Field {
 		}
 	}
 	return fields
+}
+
+func AutoNaming(ft *ast.FuncType) *ast.FuncType {
+	t := *ft
+	if len(t.Params.List) == 0 {
+		return &t
+	}
+	if len(t.Params.List[0].Names) != 0 {
+		return &t
+	}
+	for i := range t.Params.List {
+		t.Params.List[i].Names = append(t.Params.List[i].Names, ast.NewIdent(fmt.Sprintf("arg%d", i+1)))
+	}
+	return &t
 }
 
 func getSearchPath() []string {

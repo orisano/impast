@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"go/ast"
 	"go/printer"
 	"go/token"
@@ -52,7 +51,7 @@ func main() {
 	recvName := ast.NewIdent("mo")
 
 	for _, method := range methods {
-		ft := autoNaming(method.Type.(*ast.FuncType))
+		ft := impast.AutoNaming(method.Type.(*ast.FuncType))
 		expr := &ast.CallExpr{
 			Fun:  &ast.SelectorExpr{X: recvName, Sel: ast.NewIdent(method.Names[0].Name + "Mock")},
 			Args: flattenName(ft.Params),
@@ -83,20 +82,6 @@ func main() {
 		printer.Fprint(os.Stdout, token.NewFileSet(), funcDecl)
 		os.Stdout.WriteString("\n\n")
 	}
-}
-
-func autoNaming(ft *ast.FuncType) *ast.FuncType {
-	t := *ft
-	if len(t.Params.List) == 0 {
-		return &t
-	}
-	if len(t.Params.List[0].Names) != 0 {
-		return &t
-	}
-	for i := range t.Params.List {
-		t.Params.List[i].Names = append(t.Params.List[i].Names, ast.NewIdent(fmt.Sprintf("arg%d", i+1)))
-	}
-	return &t
 }
 
 func flattenName(fields *ast.FieldList) []ast.Expr {

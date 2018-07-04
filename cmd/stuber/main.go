@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/printer"
@@ -49,7 +48,7 @@ func main() {
 					Type:  ast.NewIdent(*typeName),
 				},
 			}},
-			Type: autoNaming(t.(*ast.FuncType)),
+			Type: impast.AutoNaming(t.(*ast.FuncType)),
 			Body: &ast.BlockStmt{List: []ast.Stmt{
 				&ast.ExprStmt{X: body},
 			}},
@@ -57,18 +56,4 @@ func main() {
 		printer.Fprint(os.Stdout, token.NewFileSet(), decl)
 		os.Stdout.WriteString("\n\n")
 	}
-}
-
-func autoNaming(ft *ast.FuncType) *ast.FuncType {
-	t := *ft
-	if len(t.Params.List) == 0 {
-		return &t
-	}
-	if len(t.Params.List[0].Names) != 0 {
-		return &t
-	}
-	for i := range t.Params.List {
-		t.Params.List[i].Names = append(t.Params.List[i].Names, ast.NewIdent(fmt.Sprintf("arg%d", i+1)))
-	}
-	return &t
 }

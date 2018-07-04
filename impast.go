@@ -131,10 +131,7 @@ func FindTypeByName(pkg *ast.Package, name string) ast.Expr {
 	var t ast.Expr
 	ScanDecl(pkg, func(decl ast.Decl) bool {
 		genDecl, ok := decl.(*ast.GenDecl)
-		if !ok {
-			return true
-		}
-		if genDecl.Tok != token.TYPE {
+		if !ok || genDecl.Tok != token.TYPE {
 			return true
 		}
 		for _, spec := range genDecl.Specs {

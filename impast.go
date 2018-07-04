@@ -15,6 +15,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+func ignoreTestFile(info os.FileInfo) bool {
+	return !strings.HasSuffix(info.Name(), "_test.go")
+}
+
 func ImportPackage(importPath string) (*ast.Package, error) {
 	var paths []string
 	if strings.HasPrefix(importPath, ".") {
@@ -27,9 +31,7 @@ func ImportPackage(importPath string) (*ast.Package, error) {
 		pkgPath := filepath.Join(base, filepath.FromSlash(importPath))
 
 		fset := token.NewFileSet()
-		pkgs, err := parser.ParseDir(fset, pkgPath, func(info os.FileInfo) bool {
-			return !strings.HasSuffix(info.Name(), "_test.go")
-		}, 0)
+		pkgs, err := parser.ParseDir(fset, pkgPath, ignoreTestFile, 0)
 		if os.IsNotExist(err) { // package not found
 			continue
 		}

@@ -821,3 +821,54 @@ type (
 		}
 	}
 }
+
+func TestAutoNaming(t *testing.T) {
+	funcType := func(expr string) *ast.FuncType {
+		e, err := parser.ParseExpr(expr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return e.(*ast.FuncType)
+	}
+
+	tests := []struct {
+		in       *ast.FuncType
+		expected string
+	}{
+		{
+			in:       funcType("func()"),
+			expected: "func()",
+		},
+		{
+			in:       funcType("func(int) int"),
+			expected: "func(arg1 int) int",
+		},
+		{
+			in:       funcType("func(int)"),
+			expected: "func(arg1 int)",
+		},
+		{
+			in:       funcType("func(int) (int, error)"),
+			expected: "func(arg1 int) (int, error)",
+		},
+		{
+			in:       funcType("func(int, int) int"),
+			expected: "func(arg1 int, arg2 int) int",
+		},
+		{
+			in:       funcType("func(int) int"),
+			expected: "func(arg1 int) int",
+		},
+		{
+			in:       funcType("func(a, b int) int"),
+			expected: "func(a, b int) int",
+		},
+	}
+
+	for _, test := range tests {
+		got := impast.TypeName(impast.AutoNaming(test.in))
+		if got != test.expected {
+			t.Errorf("unexpected function type. expected: %v, but got: %v", test.expected, got)
+		}
+	}
+}

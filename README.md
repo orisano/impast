@@ -124,3 +124,6 @@ func (c *MyConn) SetWriteDeadline(t time.Time) error {
 
 ## License
 MIT
+
+## Author
+Nao YONASHIRO (@orisano)

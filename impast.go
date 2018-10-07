@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"golang.org/x/tools/go/packages"
 )
 
 func ignoreTestFile(info os.FileInfo) bool {
@@ -20,33 +21,28 @@ func ignoreTestFile(info os.FileInfo) bool {
 }
 
 func ImportPackage(importPath string) (*ast.Package, error) {
-	var paths []string
-	if strings.HasPrefix(importPath, ".") {
-		paths = []string{"."}
-	} else {
-		paths = getSearchPath()
+	pkgs, err := packages.Load(&packages.Config{}, importPath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "impast: failed to load package: %q", importPath)
+	}
+	if len(pkgs) != 1 {
+		return nil, errors.Errorf("impast: invalid import path: %q", importPath)
 	}
 
-	for _, base := range paths {
-		pkgPath := filepath.Join(base, filepath.FromSlash(importPath))
-
-		fset := token.NewFileSet()
-		pkgs, err := parser.ParseDir(fset, pkgPath, ignoreTestFile, 0)
-		if os.IsNotExist(err) { // package not found
-			continue
-		}
-		if err != nil {
-			return nil, errors.Wrapf(err, "impast: broken package %q", pkgPath)
-		}
-		if len(pkgs) > 1 {
-			delete(pkgs, "main")
-		}
-		if len(pkgs) != 1 {
-			return nil, errors.Errorf("impast: ambiguous packages, found %d packages", len(pkgs))
-		}
-		for _, pkg := range pkgs {
-			return pkg, nil
-		}
+	pkgPath := filepath.Dir(pkgs[0].GoFiles[0])
+	fset := token.NewFileSet()
+	astPkgs, err := parser.ParseDir(fset, pkgPath, ignoreTestFile, 0)
+	if err != nil {
+		return nil, errors.Wrapf(err, "impast: broken package %q", pkgPath)
+	}
+	if len(pkgs) > 1 {
+		delete(astPkgs, "main")
+	}
+	if len(pkgs) != 1 {
+		return nil, errors.Errorf("impast: ambiguous packages, found %d packages", len(pkgs))
+	}
+	for _, pkg := range astPkgs {
+		return pkg, nil
 	}
 	return nil, errors.Errorf("impast: package not found %q", importPath)
 }

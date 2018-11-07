@@ -9,10 +9,17 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
 	"golang.org/x/tools/go/packages"
+)
+
+var (
+	PackageNotFound = errors.New("package not found")
+	TypeNotFound    = errors.New("type not found")
 )
 
 func ignoreTestFile(info os.FileInfo) bool {
@@ -124,6 +131,131 @@ func GetMethods(pkg *ast.Package, name string) []*ast.FuncDecl {
 	return methods
 }
 
+func GetMethodsDeep(pkg *ast.Package, name string) ([]*ast.FuncDecl, error) {
+	return GetMethodsDeepWithCache(pkg, name, map[string]*ast.Package{})
+}
+
+func GetMethodsDeepWithCache(pkg *ast.Package, name string, pkgs map[string]*ast.Package) ([]*ast.FuncDecl, error) {
+	var t *ast.StructType
+
+	typeName := strings.TrimPrefix(name, "*")
+	m := map[string]*ast.FuncDecl{}
+	for _, f := range pkg.Files {
+		for _, decl := range f.Decls {
+			switch d := decl.(type) {
+			case *ast.FuncDecl:
+				if isOwnMethod(name, d) && d.Name.IsExported() {
+					m[name] = d
+				}
+			case *ast.GenDecl:
+				if t != nil {
+					continue
+				}
+				if d.Tok != token.TYPE {
+					continue
+				}
+				for _, spec := range d.Specs {
+					typeSpec := spec.(*ast.TypeSpec)
+					if typeSpec.Name.Name != typeName {
+						continue
+					}
+					st, ok := typeSpec.Type.(*ast.StructType)
+					if !ok {
+						return nil, errors.Errorf("is not struct: %+v", typeSpec.Type)
+					}
+					t = st
+				}
+				if t == nil {
+					continue
+				}
+				for _, field := range t.Fields.List {
+					if len(field.Names) != 0 {
+						continue
+					}
+					p, name, err := ResolveTypeWithCache(f, field.Type, pkgs)
+					if err != nil {
+						return nil, errors.Wrapf(err, "failed to resolve type: %v", TypeName(field.Type))
+					}
+					if p == nil {
+						p = pkg
+					}
+					methods, err := GetMethodsDeepWithCache(p, name, pkgs)
+					if err != nil {
+						return nil, errors.Wrapf(err, "failed to get methods: %v.%v", p.Name, name)
+					}
+					for _, method := range methods {
+						if _, ok := m[method.Name.Name]; !ok {
+							m[method.Name.Name] = method
+						}
+					}
+				}
+			}
+		}
+	}
+	if t == nil {
+		return nil, TypeNotFound
+	}
+	methods := make([]*ast.FuncDecl, 0, len(m))
+	for _, f := range m {
+		methods = append(methods, f)
+	}
+	sort.Slice(methods, func(i, j int) bool {
+		return methods[i].Name.Name < methods[j].Name.Name
+	})
+	return methods, nil
+}
+
+func ResolveType(f *ast.File, expr ast.Expr) (*ast.Package, string, error) {
+	return ResolveTypeWithCache(f, expr, map[string]*ast.Package{})
+}
+
+func ResolveTypeWithCache(f *ast.File, expr ast.Expr, pkgs map[string]*ast.Package) (*ast.Package, string, error) {
+	var pkg *ast.Package
+	ptr := false
+	if se, ok := expr.(*ast.StarExpr); ok {
+		expr = se.X
+		ptr = true
+	}
+	if se, ok := expr.(*ast.SelectorExpr); ok {
+		expr = se.X
+
+		var err error
+		pkg, err = ResolvePackageWithCache(f, se.Sel.Name, pkgs)
+		if err != nil {
+			return nil, "", errors.Wrapf(err, "failed to resolve package: %v", se.Sel.Name)
+		}
+	}
+	name := expr.(*ast.Ident).Name
+	if ptr {
+		name = "*" + name
+	}
+	return pkg, name, nil
+}
+
+func ResolvePackage(f *ast.File, name string) (*ast.Package, error) {
+	return ResolvePackageWithCache(f, name, map[string]*ast.Package{})
+}
+
+func ResolvePackageWithCache(f *ast.File, name string, pkgs map[string]*ast.Package) (*ast.Package, error) {
+	for _, imp := range f.Imports {
+		p, err := strconv.Unquote(imp.Path.Value)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid import path (%v)", imp.Path.Value)
+		}
+
+		if imp.Name == nil || imp.Name.Name == name {
+			pkg, err := importPackageWithCache(p, pkgs)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to import (%v)", p)
+			}
+			if imp.Name != nil || pkg.Name == name {
+				return pkg, nil
+			}
+		}
+	}
+	return nil, PackageNotFound
+}
+
 func FindTypeByName(pkg *ast.Package, name string) ast.Expr {
 	var t ast.Expr
 	ScanDecl(pkg, func(decl ast.Decl) bool {
@@ -209,4 +341,18 @@ func AutoNaming(ft *ast.FuncType) *ast.FuncType {
 	return &t
 }
 
+func importPackageWithCache(importPath string, pkgs map[string]*ast.Package) (*ast.Package, error) {
+	if pkg, ok := pkgs[importPath]; ok {
+		return pkg, nil
+	}
+	p, err := ImportPackage(importPath)
+	if err != nil {
+		return nil, err
+	}
+	pkgs[importPath] = p
+	return p, nil
+}
+
+func isOwnMethod(name string, funcDecl *ast.FuncDecl) bool {
+	return funcDecl != nil && strings.TrimPrefix(TypeName(funcDecl.Recv.List[0].Type), "*") == strings.TrimPrefix(name, "*")
 }

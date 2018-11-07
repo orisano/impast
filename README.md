@@ -47,13 +47,13 @@ go get -u github.com/orisano/impast/cmd/interfacer
 ```
 #### How to use
 ```bash
-$ interfacer -pkg net/http -type "*Client" -out HTTPClient
+$ interfacer -out HTTPClient net/http.Client
 type HTTPClient interface {
-	Get(url string) (resp *http.Response, err error)
 	Do(req *http.Request) (*http.Response, error)
-	Post(url string, contentType string, body io.Reader) (resp *http.Response, err error)
-	PostForm(url string, data url.Values) (resp *http.Response, err error)
+	Get(url string) (resp *http.Response, err error)
 	Head(url string) (resp *http.Response, err error)
+	Post(url, contentType string, body io.Reader) (resp *http.Response, err error)
+	PostForm(url string, data url.Values) (resp *http.Response, err error)
 }
 ```
 

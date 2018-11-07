@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
-	"go/build"
 	"go/parser"
 	"go/printer"
 	"go/token"
@@ -210,14 +209,4 @@ func AutoNaming(ft *ast.FuncType) *ast.FuncType {
 	return &t
 }
 
-func getSearchPath() []string {
-	var searchPath []string
-	if wd, err := os.Getwd(); err == nil {
-		searchPath = append(searchPath, filepath.Join(wd, "vendor"))
-	}
-	for _, gopath := range filepath.SplitList(build.Default.GOPATH) {
-		searchPath = append(searchPath, filepath.Join(gopath, "src"))
-	}
-	searchPath = append(searchPath, filepath.Join(build.Default.GOROOT, "src"))
-	return searchPath
 }

@@ -138,14 +138,13 @@ func GetMethodsDeep(pkg *ast.Package, name string) ([]*ast.FuncDecl, error) {
 func GetMethodsDeepWithCache(pkg *ast.Package, name string, pkgs map[string]*ast.Package) ([]*ast.FuncDecl, error) {
 	var t *ast.StructType
 
-	typeName := strings.TrimPrefix(name, "*")
 	m := map[string]*ast.FuncDecl{}
 	for _, f := range pkg.Files {
 		for _, decl := range f.Decls {
 			switch d := decl.(type) {
 			case *ast.FuncDecl:
 				if isOwnMethod(name, d) && d.Name.IsExported() {
-					m[name] = d
+					m[d.Name.Name] = d
 				}
 			case *ast.GenDecl:
 				if t != nil {
@@ -156,7 +155,7 @@ func GetMethodsDeepWithCache(pkg *ast.Package, name string, pkgs map[string]*ast
 				}
 				for _, spec := range d.Specs {
 					typeSpec := spec.(*ast.TypeSpec)
-					if typeSpec.Name.Name != typeName {
+					if typeSpec.Name.Name != name {
 						continue
 					}
 					st, ok := typeSpec.Type.(*ast.StructType)
@@ -211,24 +210,20 @@ func ResolveType(f *ast.File, expr ast.Expr) (*ast.Package, string, error) {
 
 func ResolveTypeWithCache(f *ast.File, expr ast.Expr, pkgs map[string]*ast.Package) (*ast.Package, string, error) {
 	var pkg *ast.Package
-	ptr := false
 	if se, ok := expr.(*ast.StarExpr); ok {
 		expr = se.X
-		ptr = true
 	}
 	if se, ok := expr.(*ast.SelectorExpr); ok {
-		expr = se.X
+		expr = se.Sel
 
+		pkgName := se.X.(*ast.Ident).Name
 		var err error
-		pkg, err = ResolvePackageWithCache(f, se.Sel.Name, pkgs)
+		pkg, err = ResolvePackageWithCache(f, pkgName, pkgs)
 		if err != nil {
 			return nil, "", errors.Wrapf(err, "failed to resolve package: %v", se.Sel.Name)
 		}
 	}
 	name := expr.(*ast.Ident).Name
-	if ptr {
-		name = "*" + name
-	}
 	return pkg, name, nil
 }
 
@@ -354,5 +349,12 @@ func importPackageWithCache(importPath string, pkgs map[string]*ast.Package) (*a
 }
 
 func isOwnMethod(name string, funcDecl *ast.FuncDecl) bool {
-	return funcDecl != nil && strings.TrimPrefix(TypeName(funcDecl.Recv.List[0].Type), "*") == strings.TrimPrefix(name, "*")
+	if funcDecl.Recv == nil {
+		return false
+	}
+	rt := funcDecl.Recv.List[0].Type
+	if se, ok := rt.(*ast.StarExpr); ok {
+		rt = se.X
+	}
+	return rt.(*ast.Ident).Name == name
 }

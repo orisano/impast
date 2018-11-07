@@ -2,45 +2,46 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"go/ast"
 	"go/printer"
 	"go/token"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/orisano/impast"
 )
 
 func main() {
-	pkgPath := flag.String("pkg", "", "package path")
-	typeName := flag.String("type", "", "type name")
-	interfaceName := flag.String("out", "", "generate interface name")
+	interfaceName := flag.String("out", "", "generate interface name (required)")
 	flag.Parse()
 
-	pkg, err := impast.ImportPackage(*pkgPath)
-	if err != nil {
-		log.Fatal(err)
+	log.SetFlags(0)
+	log.SetPrefix("interfacer: ")
+
+	if *interfaceName == "" {
+		log.Print("-out is must be required")
+		flag.Usage()
+		os.Exit(2)
 	}
 
-	it := &ast.InterfaceType{
-		Methods: &ast.FieldList{},
+	pkgs := map[string]*ast.Package{}
+
+	for _, t := range flag.Args() {
+		index := strings.LastIndexByte(t, '.')
+		if index == -1 {
+			log.Fatalf("invalid type: %v", t)
+		}
+		pkgPath := t[:index]
+		typeName := t[index+1:]
+
+		pkg, err := impast.ImportPackage(pkgPath)
+		if err != nil {
+			log.Fatalf("failed to import package (%v): %v", pkgPath, err)
+		}
+
+		nameCache := map[string]string{}
 	}
-	methods := impast.GetMethods(pkg, *typeName)
-	for _, method := range methods {
-		it.Methods.List = append(it.Methods.List, &ast.Field{
-			Type:  method.Type,
-			Names: []*ast.Ident{method.Name},
-		})
-	}
-	decl := &ast.GenDecl{
-		Tok: token.TYPE,
-		Specs: []ast.Spec{
-			&ast.TypeSpec{
-				Name: ast.NewIdent(*interfaceName),
-				Type: impast.ExportType(pkg, it),
-			},
-		},
-	}
-	printer.Fprint(os.Stdout, token.NewFileSet(), decl)
-	os.Stdout.WriteString("\n")
 }

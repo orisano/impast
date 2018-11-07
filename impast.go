@@ -196,7 +196,7 @@ func GetMethodsDeepWithCache(pkg *ast.Package, name string, pkgs map[string]*ast
 	}
 	methods := make([]*ast.FuncDecl, 0, len(m))
 	for _, f := range m {
-		methods = append(methods, f)
+		methods = append(methods, ExportFunc(pkg, f))
 	}
 	sort.Slice(methods, func(i, j int) bool {
 		return methods[i].Name.Name < methods[j].Name.Name

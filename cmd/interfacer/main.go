@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"go/ast"
 	"go/printer"
 	"go/token"
@@ -75,12 +76,49 @@ func intersectionMethods(a, b []*ast.FuncDecl) []*ast.FuncDecl {
 	}
 	c := a[:0]
 	for _, x := range a {
-		for len(b) > 0 && b[0].Name.Name < x.Name.Name {
+		for len(b) > 0 && less(b[0], x) {
 			b = b[1:]
 		}
-		if len(b) > 0 && b[0].Name.Name == x.Name.Name {
+		if len(b) > 0 && equal(x, b[0]) {
 			c = append(c, x)
 		}
 	}
 	return c
+}
+
+func less(a, b *ast.FuncDecl) bool {
+	if a.Name.Name != b.Name.Name {
+		return a.Name.Name < b.Name.Name
+	}
+	return signature(a) < signature(b)
+}
+
+func equal(a, b *ast.FuncDecl) bool {
+	ok := !less(a, b) && !less(b, a)
+	return ok
+}
+
+func signature(f *ast.FuncDecl) string {
+	args := types(f.Type.Params)
+	results := types(f.Type.Results)
+
+	return fmt.Sprintf("(%s)(%s)", strings.Join(args, ","), strings.Join(results, ","))
+}
+
+func types(fl *ast.FieldList) []string {
+	var ts []string
+	if fl == nil {
+		return ts
+	}
+	for _, el := range fl.List {
+		t := impast.TypeName(el.Type)
+		if len(el.Names) == 0 {
+			ts = append(ts, t)
+		} else {
+			for range el.Names {
+				ts = append(ts, t)
+			}
+		}
+	}
+	return ts
 }

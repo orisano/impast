@@ -20,6 +20,14 @@ func mustParseFile(src string) *ast.File {
 	return f
 }
 
+func mustParseExpr(src string) ast.Expr {
+	expr, err := parser.ParseExpr(src)
+	if err != nil {
+		panic(err)
+	}
+	return expr
+}
+
 func ExampleImportPackage() {
 	pkg, err := impast.ImportPackage("io")
 	if err != nil {
@@ -869,6 +877,83 @@ func TestAutoNaming(t *testing.T) {
 		got := impast.TypeName(impast.AutoNaming(test.in))
 		if got != test.expected {
 			t.Errorf("unexpected function type. expected: %v, but got: %v", test.expected, got)
+		}
+	}
+}
+
+func TestResolveTypeWithCache(t *testing.T) {
+	tests := []struct {
+		src  *ast.File
+		expr ast.Expr
+		pkgs map[string]*ast.Package
+
+		expectedPackageName string
+		expectedType        string
+	}{
+		{
+			src: mustParseFile(`
+package main
+
+import "github.com/example/foobar"
+`),
+			expr: mustParseExpr("foobar.Type"),
+			pkgs: map[string]*ast.Package{
+				"github.com/example/foobar": {
+					Name: "foobar",
+				},
+			},
+
+			expectedPackageName: "foobar",
+			expectedType:        "Type",
+		},
+		{
+			src: mustParseFile(`
+package main
+
+import fb "github.com/example/foobar"
+`),
+			expr: mustParseExpr("fb.Type"),
+			pkgs: map[string]*ast.Package{
+				"github.com/example/foobar": {
+					Name: "foobar",
+				},
+			},
+
+			expectedPackageName: "foobar",
+			expectedType:        "Type",
+		},
+		{
+			src: mustParseFile(`
+package main
+
+import "github.com/example/foobar"
+`),
+			expr: mustParseExpr("*foobar.Type"),
+			pkgs: map[string]*ast.Package{
+				"github.com/example/foobar": {
+					Name: "foobar",
+				},
+			},
+
+			expectedPackageName: "foobar",
+			expectedType:        "Type",
+		},
+	}
+
+	for _, test := range tests {
+		pkg, name, err := impast.ResolveTypeWithCache(test.src, test.expr, test.pkgs)
+		if err != nil {
+			t.Error("failed to resolve type")
+			continue
+		}
+
+		if test.expectedPackageName != "" {
+			if pkg == nil || pkg.Name != test.expectedPackageName {
+				t.Errorf("unexpected package name. expected: %v, but got: %v", test.expectedPackageName, pkg.Name)
+			}
+		}
+		if name != test.expectedType {
+			t.Errorf("unexpected type name. expected: %v, but got: %v", test.expectedType, name)
 		}
 	}
 }

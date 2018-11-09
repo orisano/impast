@@ -1,12 +1,16 @@
 package impast_test
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/printer"
 	"go/token"
 	"log"
+	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/orisano/impast"
@@ -956,4 +960,325 @@ import "github.com/example/foobar"
 			t.Errorf("unexpected type name. expected: %v, but got: %v", test.expectedType, name)
 		}
 	}
+}
+
+func TestGetMethodsDeepWithCache(t *testing.T) {
+	tests := []struct {
+		pkg  *ast.Package
+		name string
+		pkgs map[string]*ast.Package
+
+		expected []string
+	}{
+		{
+			pkg: &ast.Package{
+				Name: "foo",
+				Files: map[string]*ast.File{
+					"foo.go": mustParseFile(`
+package foo
+
+type Foo struct {}
+
+func (f Foo) Do(n int) error {
+	return nil
+}
+`),
+				},
+			},
+			name: "Foo",
+			pkgs: map[string]*ast.Package{},
+
+			expected: []string{"Do(int)(error)"},
+		},
+		{
+			pkg: &ast.Package{
+				Name: "foo",
+				Files: map[string]*ast.File{
+					"foo.go": mustParseFile(`
+package foo
+
+type Foo struct {}
+
+func (f *Foo) Do(n int) error {
+	return nil
+}
+`),
+				},
+			},
+			name: "Foo",
+			pkgs: map[string]*ast.Package{},
+
+			expected: []string{"Do(int)(error)"},
+		},
+		{
+			pkg: &ast.Package{
+				Name: "foo",
+				Files: map[string]*ast.File{
+					"foo.go": mustParseFile(`
+package foo
+
+type Foo struct {}
+
+func (f *Foo) Do(n int) error {
+	return nil
+}
+
+func (f Foo) A(msg string) {}
+`),
+				},
+			},
+			name: "Foo",
+			pkgs: map[string]*ast.Package{},
+
+			expected: []string{"A(string)()", "Do(int)(error)"},
+		},
+		{
+			pkg: &ast.Package{
+				Name: "foo",
+				Files: map[string]*ast.File{
+					"foo.go": mustParseFile(`
+package foo
+
+type Foo struct {}
+
+func (f *Foo) Do(n int) error {
+	return nil
+}
+`),
+					"foo_a.go": mustParseFile(`
+package foo
+
+func (f Foo) A(msg string) {}
+`),
+				},
+			},
+			name: "Foo",
+			pkgs: map[string]*ast.Package{},
+
+			expected: []string{"A(string)()", "Do(int)(error)"},
+		},
+		{
+			pkg: &ast.Package{
+				Name: "foo",
+				Files: map[string]*ast.File{
+					"foo.go": mustParseFile(`
+package foo
+
+import (
+	"impast.example/example/bar"
+)
+
+type Foo struct {
+	bar.Bar
+}
+
+func (f *Foo) Do(n int) error {
+	return nil
+}
+`),
+					"foo_a.go": mustParseFile(`
+package foo
+
+func (f Foo) A(msg string) {}
+`),
+				},
+			},
+			name: "Foo",
+			pkgs: map[string]*ast.Package{
+				"impast.example/example/bar": {
+					Name: "bar",
+					Files: map[string]*ast.File{
+						"bar.go": mustParseFile(`
+package bar
+
+type Bar struct {}
+
+func (b *Bar) BarDo(dest interface{}) error {
+	return nil
+}
+`),
+					},
+				},
+			},
+
+			expected: []string{"A(string)()", "BarDo(interface{})(error)", "Do(int)(error)"},
+		},
+		{
+			pkg: &ast.Package{
+				Name: "foo",
+				Files: map[string]*ast.File{
+					"foo.go": mustParseFile(`
+package foo
+
+import (
+	"impast.example/example/bar"
+)
+
+type Foo struct {
+	*bar.Bar
+}
+
+func (f *Foo) Do(n int) error {
+	return nil
+}
+`),
+					"foo_a.go": mustParseFile(`
+package foo
+
+func (f Foo) A(msg string) {}
+`),
+				},
+			},
+			name: "Foo",
+			pkgs: map[string]*ast.Package{
+				"impast.example/example/bar": {
+					Name: "bar",
+					Files: map[string]*ast.File{
+						"bar.go": mustParseFile(`
+package bar
+
+type Bar struct {}
+
+func (b *Bar) BarDo(dest interface{}) error {
+	return nil
+}
+`),
+					},
+				},
+			},
+
+			expected: []string{"A(string)()", "BarDo(interface{})(error)", "Do(int)(error)"},
+		},
+		{
+			pkg: &ast.Package{
+				Name: "foo",
+				Files: map[string]*ast.File{
+					"foo.go": mustParseFile(`
+package foo
+
+import (
+	"impast.example/example/bar"
+)
+
+type Foo struct {
+	Bar bar.Bar
+}
+
+func (f *Foo) Do(n int) error {
+	return nil
+}
+`),
+					"foo_a.go": mustParseFile(`
+package foo
+
+func (f Foo) A(msg string) {}
+`),
+				},
+			},
+			name: "Foo",
+			pkgs: map[string]*ast.Package{
+				"impast.example/example/bar": {
+					Name: "bar",
+					Files: map[string]*ast.File{
+						"bar.go": mustParseFile(`
+package bar
+
+type Bar struct {}
+
+func (b *Bar) BarDo(dest interface{}) error {
+	return nil
+}
+`),
+					},
+				},
+			},
+
+			expected: []string{"A(string)()", "Do(int)(error)"},
+		},
+		{
+			pkg: &ast.Package{
+				Name: "foo",
+				Files: map[string]*ast.File{
+					"foo.go": mustParseFile(`
+package foo
+
+import (
+	"impast.example/example/bar"
+)
+
+type Foo struct {
+	*bar.Bar
+}
+
+func (f *Foo) Do(n int) error {
+	return nil
+}
+`),
+					"foo_a.go": mustParseFile(`
+package foo
+
+func (f Foo) A(msg string) {}
+`),
+				},
+			},
+			name: "Foo",
+			pkgs: map[string]*ast.Package{
+				"impast.example/example/bar": {
+					Name: "bar",
+					Files: map[string]*ast.File{
+						"bar.go": mustParseFile(`
+package bar
+
+type Bar struct {}
+
+func (b *Bar) Do(dest interface{}) error {
+	return nil
+}
+`),
+					},
+				},
+			},
+
+			expected: []string{"A(string)()", "Do(int)(error)"},
+		},
+	}
+
+	for _, test := range tests {
+		methods, err := impast.GetMethodsDeepWithCache(test.pkg, test.name, test.pkgs)
+		if err != nil {
+			t.Errorf("failed to get methods: %v", err)
+			continue
+		}
+		var got []string
+		for _, m := range methods {
+			got = append(got, signature(m))
+		}
+		if !reflect.DeepEqual(got, test.expected) {
+			t.Errorf("unexpected signatures. expected: %+v, but got: %+v", test.expected, got)
+		}
+	}
+}
+
+func signature(f *ast.FuncDecl) string {
+	return fmt.Sprintf("%v(%v)(%v)", f.Name.Name, types(f.Type.Params), types(f.Type.Results))
+}
+
+func types(fl *ast.FieldList) string {
+	if fl == nil {
+		return ""
+	}
+	var ts []string
+	for _, el := range fl.List {
+		b := bytes.NewBuffer(nil)
+		printer.Fprint(b, token.NewFileSet(), el.Type)
+		t := b.String()
+		if len(el.Names) == 0 {
+			ts = append(ts, t)
+		} else {
+			for range el.Names {
+				ts = append(ts, t)
+			}
+		}
+	}
+	return strings.Join(ts, ",")
 }

@@ -150,43 +150,16 @@ func GetMethodsDeepWithCache(pkg *ast.Package, name string, pkgs map[string]*ast
 				if t != nil {
 					continue
 				}
-				if d.Tok != token.TYPE {
+				st, found, err := findStruct(d, name)
+				if err != nil {
+					return nil, errors.Wrapf(err, "failed to find struct: %+v", d)
+				}
+				if !found {
 					continue
 				}
-				for _, spec := range d.Specs {
-					typeSpec := spec.(*ast.TypeSpec)
-					if typeSpec.Name.Name != name {
-						continue
-					}
-					st, ok := typeSpec.Type.(*ast.StructType)
-					if !ok {
-						return nil, errors.Errorf("is not struct: %+v", typeSpec.Type)
-					}
-					t = st
-				}
-				if t == nil {
-					continue
-				}
-				for _, field := range t.Fields.List {
-					if len(field.Names) != 0 {
-						continue
-					}
-					p, name, err := ResolveTypeWithCache(f, field.Type, pkgs)
-					if err != nil {
-						return nil, errors.Wrapf(err, "failed to resolve type: %v", TypeName(field.Type))
-					}
-					if p == nil {
-						p = pkg
-					}
-					methods, err := GetMethodsDeepWithCache(p, name, pkgs)
-					if err != nil {
-						return nil, errors.Wrapf(err, "failed to get methods: %v.%v", p.Name, name)
-					}
-					for _, method := range methods {
-						if _, ok := m[method.Name.Name]; !ok {
-							m[method.Name.Name] = method
-						}
-					}
+				t = st
+				if err := resolveMethodsDeep(pkg, f, t, pkgs, m); err != nil {
+					return nil, errors.Wrap(err, "failed to resolve methods")
 				}
 			}
 		}
@@ -202,6 +175,61 @@ func GetMethodsDeepWithCache(pkg *ast.Package, name string, pkgs map[string]*ast
 		return methods[i].Name.Name < methods[j].Name.Name
 	})
 	return methods, nil
+}
+
+func findStruct(d *ast.GenDecl, name string) (*ast.StructType, bool, error) {
+	if d.Tok != token.TYPE {
+		return nil, false, nil
+	}
+	for _, spec := range d.Specs {
+		typeSpec := spec.(*ast.TypeSpec)
+		if typeSpec.Name.Name != name {
+			continue
+		}
+		st, ok := typeSpec.Type.(*ast.StructType)
+		if !ok {
+			return nil, false, errors.Errorf("is not struct: %+v", typeSpec.Type)
+		}
+		return st, true, nil
+	}
+	return nil, false, nil
+}
+
+func getEmbeddedStruct(s *ast.StructType) []ast.Expr {
+	var es []ast.Expr
+	for _, f := range s.Fields.List {
+		if len(f.Names) > 0 {
+			continue
+		}
+		es = append(es, f.Type)
+	}
+	return es
+}
+
+func getEmbeddedMethods(pkg *ast.Package, f *ast.File, t ast.Expr, pkgs map[string]*ast.Package) ([]*ast.FuncDecl, error) {
+	p, name, err := ResolveTypeWithCache(f, t, pkgs)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to resolve type")
+	}
+	if p == nil {
+		p = pkg
+	}
+	return GetMethodsDeepWithCache(p, name, pkgs)
+}
+
+func resolveMethodsDeep(pkg *ast.Package, f *ast.File, t *ast.StructType, pkgs map[string]*ast.Package, dest map[string]*ast.FuncDecl) error {
+	for _, et := range getEmbeddedStruct(t) {
+		methods, err := getEmbeddedMethods(pkg, f, et, pkgs)
+		if err != nil {
+			return errors.Wrapf(err, "failed to embedded methods: %v", TypeName(et))
+		}
+		for _, method := range methods {
+			if _, ok := dest[method.Name.Name]; !ok {
+				dest[method.Name.Name] = method
+			}
+		}
+	}
+	return nil
 }
 
 func ResolveType(f *ast.File, expr ast.Expr) (*ast.Package, string, error) {

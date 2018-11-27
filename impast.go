@@ -4,17 +4,16 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/printer"
 	"go/token"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
-	"golang.org/x/tools/go/packages"
 )
 
 var (
@@ -27,25 +26,22 @@ func ignoreTestFile(info os.FileInfo) bool {
 }
 
 func ImportPackage(importPath string) (*ast.Package, error) {
-	pkgs, err := packages.Load(&packages.Config{}, importPath)
+	pkg, err := build.Import(importPath, ".", build.FindOnly)
 	if err != nil {
-		return nil, errors.Wrapf(err, "impast: failed to load package: %q", importPath)
-	}
-	if len(pkgs) != 1 {
-		return nil, errors.Errorf("impast: invalid import path: %q", importPath)
+		return nil, errors.Wrap(err, "impast: failed to import")
 	}
 
-	pkgPath := filepath.Dir(pkgs[0].GoFiles[0])
+	pkgPath := pkg.Dir
 	fset := token.NewFileSet()
 	astPkgs, err := parser.ParseDir(fset, pkgPath, ignoreTestFile, 0)
 	if err != nil {
 		return nil, errors.Wrapf(err, "impast: broken package %q", pkgPath)
 	}
-	if len(pkgs) > 1 {
+	if len(astPkgs) > 1 {
 		delete(astPkgs, "main")
 	}
-	if len(pkgs) != 1 {
-		return nil, errors.Errorf("impast: ambiguous packages, found %d packages", len(pkgs))
+	if len(astPkgs) != 1 {
+		return nil, errors.Errorf("impast: ambiguous packages, found %d packages", len(astPkgs))
 	}
 	for _, pkg := range astPkgs {
 		return pkg, nil

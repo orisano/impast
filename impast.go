@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -25,28 +26,62 @@ func ignoreTestFile(info os.FileInfo) bool {
 	return !strings.HasSuffix(info.Name(), "_test.go")
 }
 
-func ImportPackage(importPath string) (*ast.Package, error) {
+type Importer struct {
+	EnableCache bool
+	cache       sync.Map
+}
+
+var DefaultImporter Importer
+
+func (i *Importer) Load(pkgs map[string]*ast.Package) {
+	for p, pkg := range pkgs {
+		i.cache.Store(p, pkg)
+	}
+}
+
+func (i *Importer) Loaded() []string {
+	var paths []string
+	i.cache.Range(func(key, _ interface{}) bool {
+		paths = append(paths, key.(string))
+		return true
+	})
+	return paths
+}
+
+func (i *Importer) ImportPackage(importPath string) (*ast.Package, error) {
+	if i.EnableCache {
+		if v, ok := i.cache.Load(importPath); ok {
+			return v.(*ast.Package), nil
+		}
+	}
 	pkg, err := build.Import(importPath, ".", build.FindOnly)
 	if err != nil {
-		return nil, errors.Wrap(err, "impast: failed to import")
+		return nil, errors.Wrap(err, "failed to import")
 	}
 
 	pkgPath := pkg.Dir
 	fset := token.NewFileSet()
 	astPkgs, err := parser.ParseDir(fset, pkgPath, ignoreTestFile, 0)
 	if err != nil {
-		return nil, errors.Wrapf(err, "impast: broken package %q", pkgPath)
+		return nil, errors.Wrapf(err, "broken package %q", pkgPath)
 	}
 	if len(astPkgs) > 1 {
 		delete(astPkgs, "main")
 	}
 	if len(astPkgs) != 1 {
-		return nil, errors.Errorf("impast: ambiguous packages, found %d packages", len(astPkgs))
+		return nil, errors.Errorf("ambiguous packages, found %d packages", len(astPkgs))
 	}
 	for _, pkg := range astPkgs {
+		if i.EnableCache {
+			i.cache.Store(importPath, pkg)
+		}
 		return pkg, nil
 	}
-	return nil, errors.Errorf("impast: package not found %q", importPath)
+	return nil, errors.Errorf("package not found")
+}
+
+func ImportPackage(importPath string) (*ast.Package, error) {
+	return DefaultImporter.ImportPackage(importPath)
 }
 
 func ScanDecl(pkg *ast.Package, f func(ast.Decl) bool) {
@@ -128,10 +163,10 @@ func GetMethods(pkg *ast.Package, name string) []*ast.FuncDecl {
 }
 
 func GetMethodsDeep(pkg *ast.Package, name string) ([]*ast.FuncDecl, error) {
-	return GetMethodsDeepWithCache(pkg, name, map[string]*ast.Package{})
+	return DefaultImporter.GetMethodsDeep(pkg, name)
 }
 
-func GetMethodsDeepWithCache(pkg *ast.Package, name string, pkgs map[string]*ast.Package) ([]*ast.FuncDecl, error) {
+func (i *Importer) GetMethodsDeep(pkg *ast.Package, name string) ([]*ast.FuncDecl, error) {
 	var t *ast.StructType
 
 	m := map[string]*ast.FuncDecl{}
@@ -154,7 +189,7 @@ func GetMethodsDeepWithCache(pkg *ast.Package, name string, pkgs map[string]*ast
 					continue
 				}
 				t = st
-				if err := resolveMethodsDeep(pkg, f, t, pkgs, m); err != nil {
+				if err := i.resolveMethodsDeep(pkg, f, t, m); err != nil {
 					return nil, errors.Wrap(err, "failed to resolve methods")
 				}
 			}
@@ -202,22 +237,22 @@ func getEmbeddedStruct(s *ast.StructType) []ast.Expr {
 	return es
 }
 
-func getEmbeddedMethods(pkg *ast.Package, f *ast.File, t ast.Expr, pkgs map[string]*ast.Package) ([]*ast.FuncDecl, error) {
-	p, name, err := ResolveTypeWithCache(f, t, pkgs)
+func (i *Importer) getEmbeddedMethods(pkg *ast.Package, f *ast.File, t ast.Expr) ([]*ast.FuncDecl, error) {
+	p, name, err := i.ResolveType(f, t)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to resolve type")
 	}
 	if p == nil {
 		p = pkg
 	}
-	return GetMethodsDeepWithCache(p, name, pkgs)
+	return i.GetMethodsDeep(p, name)
 }
 
-func resolveMethodsDeep(pkg *ast.Package, f *ast.File, t *ast.StructType, pkgs map[string]*ast.Package, dest map[string]*ast.FuncDecl) error {
+func (i *Importer) resolveMethodsDeep(pkg *ast.Package, f *ast.File, t *ast.StructType, dest map[string]*ast.FuncDecl) error {
 	for _, et := range getEmbeddedStruct(t) {
-		methods, err := getEmbeddedMethods(pkg, f, et, pkgs)
+		methods, err := i.getEmbeddedMethods(pkg, f, et)
 		if err != nil {
-			return errors.Wrapf(err, "failed to embedded methods: %v", TypeName(et))
+			return errors.Wrapf(err, "failed to get embedded methods: %v", TypeName(et))
 		}
 		for _, method := range methods {
 			if _, ok := dest[method.Name.Name]; !ok {
@@ -229,10 +264,10 @@ func resolveMethodsDeep(pkg *ast.Package, f *ast.File, t *ast.StructType, pkgs m
 }
 
 func ResolveType(f *ast.File, expr ast.Expr) (*ast.Package, string, error) {
-	return ResolveTypeWithCache(f, expr, map[string]*ast.Package{})
+	return DefaultImporter.ResolveType(f, expr)
 }
 
-func ResolveTypeWithCache(f *ast.File, expr ast.Expr, pkgs map[string]*ast.Package) (*ast.Package, string, error) {
+func (i *Importer) ResolveType(f *ast.File, expr ast.Expr) (*ast.Package, string, error) {
 	var pkg *ast.Package
 	if se, ok := expr.(*ast.StarExpr); ok {
 		expr = se.X
@@ -242,7 +277,7 @@ func ResolveTypeWithCache(f *ast.File, expr ast.Expr, pkgs map[string]*ast.Packa
 
 		pkgName := se.X.(*ast.Ident).Name
 		var err error
-		pkg, err = ResolvePackageWithCache(f, pkgName, pkgs)
+		pkg, err = i.ResolvePackage(f, pkgName)
 		if err != nil {
 			return nil, "", errors.Wrapf(err, "failed to resolve package: %v", se.Sel.Name)
 		}
@@ -252,10 +287,10 @@ func ResolveTypeWithCache(f *ast.File, expr ast.Expr, pkgs map[string]*ast.Packa
 }
 
 func ResolvePackage(f *ast.File, name string) (*ast.Package, error) {
-	return ResolvePackageWithCache(f, name, map[string]*ast.Package{})
+	return DefaultImporter.ResolvePackage(f, name)
 }
 
-func ResolvePackageWithCache(f *ast.File, name string, pkgs map[string]*ast.Package) (*ast.Package, error) {
+func (i *Importer) ResolvePackage(f *ast.File, name string) (*ast.Package, error) {
 	for _, imp := range f.Imports {
 		p, err := strconv.Unquote(imp.Path.Value)
 		if err != nil {
@@ -263,7 +298,7 @@ func ResolvePackageWithCache(f *ast.File, name string, pkgs map[string]*ast.Pack
 		}
 
 		if imp.Name == nil || imp.Name.Name == name {
-			pkg, err := importPackageWithCache(p, pkgs)
+			pkg, err := i.ImportPackage(p)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to import (%v)", p)
 			}
@@ -356,18 +391,6 @@ func AutoNaming(ft *ast.FuncType) *ast.FuncType {
 		t.Params.List[i].Names = append(t.Params.List[i].Names, ast.NewIdent(fmt.Sprintf("arg%d", i+1)))
 	}
 	return &t
-}
-
-func importPackageWithCache(importPath string, pkgs map[string]*ast.Package) (*ast.Package, error) {
-	if pkg, ok := pkgs[importPath]; ok {
-		return pkg, nil
-	}
-	p, err := ImportPackage(importPath)
-	if err != nil {
-		return nil, err
-	}
-	pkgs[importPath] = p
-	return p, nil
 }
 
 func isOwnMethod(name string, funcDecl *ast.FuncDecl) bool {

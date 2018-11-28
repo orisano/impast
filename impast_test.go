@@ -885,7 +885,7 @@ func TestAutoNaming(t *testing.T) {
 	}
 }
 
-func TestResolveTypeWithCache(t *testing.T) {
+func TestResolveType(t *testing.T) {
 	tests := []struct {
 		src  *ast.File
 		expr ast.Expr
@@ -945,7 +945,9 @@ import "github.com/example/foobar"
 	}
 
 	for _, test := range tests {
-		pkg, name, err := impast.ResolveTypeWithCache(test.src, test.expr, test.pkgs)
+		imp := &impast.Importer{EnableCache: true}
+		imp.Load(test.pkgs)
+		pkg, name, err := imp.ResolveType(test.src, test.expr)
 		if err != nil {
 			t.Error("failed to resolve type")
 			continue
@@ -962,7 +964,7 @@ import "github.com/example/foobar"
 	}
 }
 
-func TestGetMethodsDeepWithCache(t *testing.T) {
+func TestGetMethodsDeep(t *testing.T) {
 	tests := []struct {
 		pkg  *ast.Package
 		name string
@@ -1244,7 +1246,10 @@ func (b *Bar) Do(dest interface{}) error {
 	}
 
 	for _, test := range tests {
-		methods, err := impast.GetMethodsDeepWithCache(test.pkg, test.name, test.pkgs)
+		imp := &impast.Importer{EnableCache: true}
+		imp.Load(test.pkgs)
+
+		methods, err := imp.GetMethodsDeep(test.pkg, test.name)
 		if err != nil {
 			t.Errorf("failed to get methods: %v", err)
 			continue
@@ -1281,4 +1286,34 @@ func types(fl *ast.FieldList) string {
 		}
 	}
 	return strings.Join(ts, ",")
+}
+
+func TestImporter_Loaded(t *testing.T) {
+	tests := []struct {
+		pkgs     map[string]*ast.Package
+		expected []string
+	}{
+		{
+			pkgs: map[string]*ast.Package{},
+		},
+		{
+			pkgs: map[string]*ast.Package{
+				"a": {},
+				"b": {},
+				"c": {},
+			},
+			expected: []string{"a", "b", "c"},
+		},
+	}
+
+	for _, test := range tests {
+		imp := &impast.Importer{EnableCache: true}
+		imp.Load(test.pkgs)
+
+		paths := imp.Loaded()
+		sort.Strings(paths)
+		if !reflect.DeepEqual(paths, test.expected) {
+			t.Errorf("unexpected loaded. expected: %v, but got: %v", test.expected, paths)
+		}
+	}
 }

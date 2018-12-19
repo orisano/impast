@@ -269,6 +269,7 @@ func ResolveType(f *ast.File, expr ast.Expr) (*ast.Package, string, error) {
 
 func (i *Importer) ResolveType(f *ast.File, expr ast.Expr) (*ast.Package, string, error) {
 	var pkg *ast.Package
+	var err error
 	if se, ok := expr.(*ast.StarExpr); ok {
 		expr = se.X
 	}
@@ -276,10 +277,15 @@ func (i *Importer) ResolveType(f *ast.File, expr ast.Expr) (*ast.Package, string
 		expr = se.Sel
 
 		pkgName := se.X.(*ast.Ident).Name
-		var err error
 		pkg, err = i.ResolvePackage(f, pkgName)
 		if err != nil {
 			return nil, "", errors.Wrapf(err, "failed to resolve package: %v", se.Sel.Name)
+		}
+	} else if id, ok := expr.(*ast.Ident); ok && id.IsExported() {
+		pkg, err = i.ImportPackage(".")
+		wd, _ := os.Getwd()
+		if err != nil {
+			return nil, "", errors.Wrapf(err, "failed to import self package: %v", wd)
 		}
 	}
 	name := expr.(*ast.Ident).Name

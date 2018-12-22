@@ -947,7 +947,7 @@ import "github.com/example/foobar"
 	for _, test := range tests {
 		imp := &impast.Importer{EnableCache: true}
 		imp.Load(test.pkgs)
-		pkg, name, err := imp.ResolveType(test.src, test.expr)
+		pkg, name, err := imp.ResolveType(nil, test.src, test.expr)
 		if err != nil {
 			t.Error("failed to resolve type")
 			continue

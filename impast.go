@@ -238,7 +238,7 @@ func getEmbeddedStruct(s *ast.StructType) []ast.Expr {
 }
 
 func (i *Importer) getEmbeddedMethods(pkg *ast.Package, f *ast.File, t ast.Expr) ([]*ast.FuncDecl, error) {
-	p, name, err := i.ResolveType(f, t)
+	p, name, err := i.ResolveType(pkg, f, t)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to resolve type")
 	}
@@ -263,12 +263,11 @@ func (i *Importer) resolveMethodsDeep(pkg *ast.Package, f *ast.File, t *ast.Stru
 	return nil
 }
 
-func ResolveType(f *ast.File, expr ast.Expr) (*ast.Package, string, error) {
-	return DefaultImporter.ResolveType(f, expr)
+func ResolveType(pkg *ast.Package, f *ast.File, expr ast.Expr) (*ast.Package, string, error) {
+	return DefaultImporter.ResolveType(pkg, f, expr)
 }
 
-func (i *Importer) ResolveType(f *ast.File, expr ast.Expr) (*ast.Package, string, error) {
-	var pkg *ast.Package
+func (i *Importer) ResolveType(pkg *ast.Package, f *ast.File, expr ast.Expr) (*ast.Package, string, error) {
 	var err error
 	if se, ok := expr.(*ast.StarExpr); ok {
 		expr = se.X
@@ -282,7 +281,9 @@ func (i *Importer) ResolveType(f *ast.File, expr ast.Expr) (*ast.Package, string
 			return nil, "", errors.Wrapf(err, "failed to resolve package: %v", se.Sel.Name)
 		}
 	} else if id, ok := expr.(*ast.Ident); ok && id.IsExported() {
-		pkg, err = i.ImportPackage(".")
+		if pkg == nil {
+			pkg, err = i.ImportPackage(".")
+		}
 		wd, _ := os.Getwd()
 		if err != nil {
 			return nil, "", errors.Wrapf(err, "failed to import self package: %v", wd)

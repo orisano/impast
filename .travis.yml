@@ -1,13 +1,13 @@
+dist: xenial
 env:
   global:
     - CC_TEST_REPORTER_ID=bc834d61bd8c44b21973a273168c975b942871024d5a9a3490dfc05d7dfd9afd
 
 language: go
 go:
-  - "1.9"
-  - "1.10"
   - "1.11"
-
+  - "1.12"
+  - "1.13"
 go_import_path: github.com/orisano/impast
 
 before_script:

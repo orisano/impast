@@ -2,6 +2,7 @@ package impast
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/build"
@@ -13,13 +14,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-
-	"golang.org/x/xerrors"
 )
 
 var (
-	PackageNotFound = xerrors.New("package not found")
-	TypeNotFound    = xerrors.New("type not found")
+	PackageNotFound = errors.New("package not found")
+	TypeNotFound    = errors.New("type not found")
 )
 
 func ignoreTestFile(info os.FileInfo) bool {
@@ -56,20 +55,20 @@ func (i *Importer) ImportPackage(importPath string) (*ast.Package, error) {
 	}
 	pkg, err := build.Import(importPath, ".", build.FindOnly)
 	if err != nil {
-		return nil, xerrors.Errorf("import: %w", err)
+		return nil, fmt.Errorf("import: %w", err)
 	}
 
 	pkgPath := pkg.Dir
 	fset := token.NewFileSet()
 	astPkgs, err := parser.ParseDir(fset, pkgPath, ignoreTestFile, 0)
 	if err != nil {
-		return nil, xerrors.Errorf("parse package %q: %w", pkgPath, err)
+		return nil, fmt.Errorf("parse package %q: %w", pkgPath, err)
 	}
 	if len(astPkgs) > 1 {
 		delete(astPkgs, "main")
 	}
 	if len(astPkgs) != 1 {
-		return nil, xerrors.Errorf("ambiguous packages, found %d packages", len(astPkgs))
+		return nil, fmt.Errorf("ambiguous packages, found %d packages", len(astPkgs))
 	}
 	for _, pkg := range astPkgs {
 		if i.EnableCache {
@@ -183,14 +182,14 @@ func (i *Importer) GetMethodsDeep(pkg *ast.Package, name string) ([]*ast.FuncDec
 				}
 				st, found, err := findStruct(d, name)
 				if err != nil {
-					return nil, xerrors.Errorf("find struct(%+v): %w", d, err)
+					return nil, fmt.Errorf("find struct(%+v): %w", d, err)
 				}
 				if !found {
 					continue
 				}
 				t = st
 				if err := i.resolveMethodsDeep(pkg, f, t, m); err != nil {
-					return nil, xerrors.Errorf("resolve methods: %w", err)
+					return nil, fmt.Errorf("resolve methods: %w", err)
 				}
 			}
 		}
@@ -219,7 +218,7 @@ func findStruct(d *ast.GenDecl, name string) (*ast.StructType, bool, error) {
 		}
 		st, ok := typeSpec.Type.(*ast.StructType)
 		if !ok {
-			return nil, false, xerrors.Errorf("is not struct: %+v", typeSpec.Type)
+			return nil, false, fmt.Errorf("is not struct: %+v", typeSpec.Type)
 		}
 		return st, true, nil
 	}
@@ -240,7 +239,7 @@ func getEmbeddedStruct(s *ast.StructType) []ast.Expr {
 func (i *Importer) getEmbeddedMethods(pkg *ast.Package, f *ast.File, t ast.Expr) ([]*ast.FuncDecl, error) {
 	p, name, err := i.ResolveType(f, t)
 	if err != nil {
-		return nil, xerrors.Errorf("resolve type: %w", err)
+		return nil, fmt.Errorf("resolve type: %w", err)
 	}
 	if p == nil {
 		p = pkg
@@ -252,7 +251,7 @@ func (i *Importer) resolveMethodsDeep(pkg *ast.Package, f *ast.File, t *ast.Stru
 	for _, et := range getEmbeddedStruct(t) {
 		methods, err := i.getEmbeddedMethods(pkg, f, et)
 		if err != nil {
-			return xerrors.Errorf("get embedded methods(%v): %w", TypeName(et), err)
+			return fmt.Errorf("get embedded methods(%v): %w", TypeName(et), err)
 		}
 		for _, method := range methods {
 			if _, ok := dest[method.Name.Name]; !ok {
@@ -279,13 +278,13 @@ func (i *Importer) ResolveType(f *ast.File, expr ast.Expr) (*ast.Package, string
 		pkgName := se.X.(*ast.Ident).Name
 		pkg, err = i.ResolvePackage(f, pkgName)
 		if err != nil {
-			return nil, "", xerrors.Errorf("resolve package(%v): %w", se.Sel.Name, err)
+			return nil, "", fmt.Errorf("resolve package(%v): %w", se.Sel.Name, err)
 		}
 	} else if id, ok := expr.(*ast.Ident); ok && id.IsExported() {
 		pkg, err = i.ImportPackage(".")
 		wd, _ := os.Getwd()
 		if err != nil {
-			return nil, "", xerrors.Errorf("import self package(%v): %w", wd, err)
+			return nil, "", fmt.Errorf("import self package(%v): %w", wd, err)
 		}
 	}
 	name := expr.(*ast.Ident).Name
@@ -300,13 +299,13 @@ func (i *Importer) ResolvePackage(f *ast.File, name string) (*ast.Package, error
 	for _, imp := range f.Imports {
 		p, err := strconv.Unquote(imp.Path.Value)
 		if err != nil {
-			return nil, xerrors.Errorf("invalid import path(%v): %w", imp.Path.Value, err)
+			return nil, fmt.Errorf("invalid import path(%v): %w", imp.Path.Value, err)
 		}
 
 		if imp.Name == nil || imp.Name.Name == name {
 			pkg, err := i.ImportPackage(p)
 			if err != nil {
-				return nil, xerrors.Errorf("import(%v): %w", p, err)
+				return nil, fmt.Errorf("import(%v): %w", p, err)
 			}
 			if imp.Name != nil || pkg.Name == name {
 				return pkg, nil

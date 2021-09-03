@@ -1,6 +1,6 @@
 # impast
 
-[![Build Status](https://travis-ci.com/orisano/impast.svg?branch=master)](https://travis-ci.com/orisano/impast)
+[![Build Status](https://app.travis-ci.com/orisano/impast.svg?branch=master)](https://app.travis-ci.com/orisano/impast)
 [![Maintainability](https://api.codeclimate.com/v1/badges/3cdd244b061420db53ba/maintainability)](https://codeclimate.com/github/orisano/impast/maintainability)
 [![Test Coverage](https://api.codeclimate.com/v1/badges/3cdd244b061420db53ba/test_coverage)](https://codeclimate.com/github/orisano/impast/test_coverage)
 
